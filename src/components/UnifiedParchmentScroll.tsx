@@ -437,9 +437,9 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
   }, []);
 
   // FIXED SCROLL RUNWAY DISTANCE (STABLE & CONSTANT THROUGHOUT SCROLLING)
-  // This guarantees that maxScrollableDistance NEVER changes during scrolling,
-  // completely eliminating layout feedback loops and end-of-page flickering!
-  const scrollRunway = Math.max(900, Math.round(fullContentHeight * 0.75));
+  // Matched strictly to content height so scrolling finishes right as the diploma opens,
+  // putting clean bounds on the page and eliminating empty space at the end!
+  const scrollRunway = Math.max(600, Math.round(fullContentHeight - SEMI_OPEN_HEIGHT));
 
   // Passive window scroll tracking
   useEffect(() => {
@@ -465,28 +465,23 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
   // SCROLL PROGRESS: Smoothly and stably ranges from 0.0 (top of page) to 1.0 (bottom of page)
   const progress = Math.min(1, Math.max(0, scrollY / Math.max(1, scrollRunway)));
 
-  // Audio feedback driven by scroll progress
+  // Audio & birretes feedback driven by scroll progress
   useEffect(() => {
     if (scrollY > 35 && !hasPlayedUnrollSound.current) {
       hasPlayedUnrollSound.current = true;
       sound.playUnrollSound();
     } else if (scrollY <= 15) {
-      // Reset triggers when user scrolls back to the top so re-rolling and re-opening works seamlessly!
+      // Reset triggers when user scrolls back to the top
       hasPlayedUnrollSound.current = false;
       hasPlayedFanfare.current = false;
     }
 
-    if (progress >= 0.96 && !hasPlayedFanfare.current) {
+    if (progress >= 0.98 && !hasPlayedFanfare.current) {
       hasPlayedFanfare.current = true;
       sound.playFanfare();
-
-      triggerBirretesShower(0.35, 50);
-
-      if (!isMuted && !isMusicPlaying) {
-        sound.startAmbientMusic();
-      }
+      triggerBirretesShower(0.35, 45);
     }
-  }, [scrollY, progress, isMuted, isMusicPlaying]);
+  }, [scrollY, progress]);
 
   // Countdown timer logic
   useEffect(() => {
@@ -520,14 +515,18 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     }
   }, []);
 
-  // Initialize Leaflet Map once scrolled towards the venue section
+  // Initialize Leaflet Map safely without re-rendering on every scroll frame
   useEffect(() => {
     if (!mapContainerRef.current) return;
+    if (mapInstanceRef.current) return;
 
-    if (!mapInstanceRef.current) {
+    try {
+      const container = mapContainerRef.current as HTMLElement & { _leaflet_id?: number };
+      if (container._leaflet_id) return;
+
       const { lat, lng, name, address, city } = invitation.partyVenue;
 
-      const map = L.map(mapContainerRef.current, {
+      const map = L.map(container, {
         center: [lat, lng],
         zoom: 15,
         zoomControl: true,
@@ -560,17 +559,28 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
           <p style="margin:4px 0 0 0; font-size:10px; font-weight:bold; color:#d97706;">Lugar de la Recepción</p>
         </div>
       `);
+
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 350);
+    } catch (err) {
+      console.warn('Map initialization deferred or unavailable:', err);
     }
 
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.invalidateSize();
-    }
-  }, [invitation.partyVenue, progress]);
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [invitation.partyVenue]);
 
   // Handle auto-unroll smoothly to the bottom of the page
   const handleFullUnroll = () => {
     window.scrollTo({
-      top: scrollRunway + 50,
+      top: scrollRunway,
       behavior: 'smooth',
     });
   };
@@ -637,8 +647,8 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
 
   return (
     <div
-      style={{ minHeight: `${fullContentHeight + 800}px` }}
-      className="relative w-full flex flex-col items-center justify-start pt-3 sm:pt-6 pb-28 bg-radial from-[#0f172a] via-[#070b14] to-[#02050b] px-3 sm:px-4 overflow-x-hidden selection:bg-amber-500/30 selection:text-amber-200"
+      style={{ minHeight: `${fullContentHeight + 120}px` }}
+      className="relative w-full flex flex-col items-center justify-start pt-3 sm:pt-6 pb-20 bg-radial from-[#0f172a] via-[#070b14] to-[#02050b] px-3 sm:px-4 overflow-x-hidden selection:bg-amber-500/30 selection:text-amber-200"
     >
       {/* Background radiant depth auras */}
       <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
@@ -1133,7 +1143,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
       {progress > 0.08 && (
         <aside
           aria-label="Acciones de la invitación"
-          className="fixed bottom-3 inset-x-3 sm:inset-x-auto sm:w-[390px] mx-auto z-40 glass-panel-translucent rounded-2xl p-1.5 sm:p-2 flex items-center justify-between gap-1.5 sm:gap-2 transition-all hover:border-white/30"
+          className="fixed bottom-3 inset-x-3 sm:inset-x-auto sm:w-[350px] mx-auto z-40 glass-panel-translucent rounded-2xl p-1.5 sm:p-2 flex items-center justify-between gap-2 transition-all hover:border-white/30 shadow-2xl"
         >
           <button
             onClick={() => {
@@ -1143,7 +1153,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
                 handleFullUnroll();
               }
             }}
-            className="flex-1 py-2 px-3 sm:px-4 rounded-xl glass-btn-amber text-amber-200 hover:text-white font-cinzel font-bold text-xs sm:text-sm tracking-wider transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 select-none drop-shadow-sm active:scale-95"
+            className="flex-1 py-2.5 px-3 sm:px-4 rounded-xl glass-btn-amber text-amber-200 hover:text-white font-cinzel font-bold text-xs sm:text-sm tracking-wider transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 select-none drop-shadow-sm active:scale-95"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             <span>Confirmar Asistencia</span>
@@ -1151,30 +1161,21 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
 
           <button
             onClick={onToggleMusic}
-            title={isMusicPlaying ? 'Pausar música clásica' : 'Reproducir música clásica'}
-            className={`p-2 sm:p-2.5 rounded-xl glass-btn-icon text-xs transition-all cursor-pointer flex items-center justify-center ${
+            title={
+              isMusicPlaying
+                ? 'Pausar: Young, Wild & Free'
+                : 'Reproducir: Young, Wild & Free (Wiz Khalifa & Snoop Dogg)'
+            }
+            className={`px-3 py-2.5 rounded-xl glass-btn-icon text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               isMusicPlaying
                 ? 'bg-amber-400/25 border-amber-300/70 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
                 : 'text-amber-200/80 hover:text-amber-100'
             }`}
           >
             <Music className={`w-4 h-4 ${isMusicPlaying ? 'animate-bounce text-amber-300' : ''}`} />
-          </button>
-
-          <button
-            onClick={onToggleMute}
-            aria-label={isMuted ? 'Activar sonido' : 'Silenciar sonido'}
-            className="p-2 sm:p-2.5 rounded-xl glass-btn-icon text-amber-200/80 hover:text-amber-100 text-xs transition-all cursor-pointer flex items-center justify-center"
-          >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-          </button>
-
-          <button
-            onClick={handleRollBack}
-            title="Volver a enrollar diploma"
-            className="p-2 sm:p-2.5 rounded-xl glass-btn-icon text-amber-300 hover:text-amber-100 transition-all cursor-pointer flex items-center justify-center"
-          >
-            <RotateCcw className="w-4 h-4" />
+            <span className="text-[11px] font-sans font-semibold tracking-wide">
+              {isMusicPlaying ? 'Pausar' : 'Música'}
+            </span>
           </button>
         </aside>
       )}

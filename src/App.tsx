@@ -56,6 +56,43 @@ const INITIAL_INVITATION_DATA: InvitationData = {
   },
 };
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error) {
+    console.warn('Caught in ErrorBoundary:', error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#070b14] text-amber-200 flex flex-col items-center justify-center p-6 text-center font-sans">
+          <div className="w-16 h-16 rounded-full bg-amber-500/20 border border-amber-400 flex items-center justify-center text-3xl mb-4">
+            🎓
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold font-cinzel text-white mb-2">
+            Gala de Graduación
+          </h1>
+          <p className="text-sm text-slate-300 mb-6 max-w-sm">
+            Bachilleres Joseph Samuel Bolaños Trejo &amp; Julian Stiven Trejo Medina
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 text-slate-950 rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg cursor-pointer active:scale-95 transition-all"
+          >
+            Abrir Invitación
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [invitationData] = useState<InvitationData>(INITIAL_INVITATION_DATA);
   const [isMuted, setIsMuted] = useState(false);
@@ -84,23 +121,25 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full bg-[#070b14] text-stone-100 font-sans flex flex-col">
-      <UnifiedParchmentScroll
-        invitation={invitationData}
-        onOpenPass={(entry) => setActivePassEntry(entry)}
-        isMuted={isMuted}
-        onToggleMute={handleToggleMute}
-        isMusicPlaying={isMusicPlaying}
-        onToggleMusic={handleToggleMusic}
-      />
+    <ErrorBoundary>
+      <div className="min-h-[100dvh] w-full bg-[#070b14] text-stone-100 font-sans flex flex-col">
+        <UnifiedParchmentScroll
+          invitation={invitationData}
+          onOpenPass={(entry) => setActivePassEntry(entry)}
+          isMuted={isMuted}
+          onToggleMute={handleToggleMute}
+          isMusicPlaying={isMusicPlaying}
+          onToggleMusic={handleToggleMusic}
+        />
 
-      {/* PASS MODAL */}
-      <DigitalPassModal
-        entry={activePassEntry}
-        invitation={invitationData}
-        isOpen={!!activePassEntry}
-        onClose={() => setActivePassEntry(null)}
-      />
-    </div>
+        {/* PASS MODAL */}
+        <DigitalPassModal
+          entry={activePassEntry}
+          invitation={invitationData}
+          isOpen={!!activePassEntry}
+          onClose={() => setActivePassEntry(null)}
+        />
+      </div>
+    </ErrorBoundary>
   );
 }
