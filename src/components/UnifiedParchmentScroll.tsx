@@ -3,7 +3,6 @@ import { motion } from 'motion/react';
 import {
   GraduationCap,
   Sparkles,
-  Award,
   Calendar,
   Clock,
   MapPin,
@@ -840,8 +839,8 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
               </div>
             </div>
 
-            {/* 5. CEREMONY & RECEPTION ITINERARY */}
-            <div className="my-5 space-y-3">
+            {/* 5. RECEPTION VENUE */}
+            <div className="my-5">
               <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between text-xs font-bold text-amber-800 font-cinzel">
                   <div className="flex items-center gap-1.5">
@@ -857,24 +856,6 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
                 </p>
                 <p className="text-xs text-slate-600 font-sans mt-0.5">
                   {invitation.partyVenue.address}, {invitation.partyVenue.city}
-                </p>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between text-xs font-bold text-amber-800 font-cinzel">
-                  <div className="flex items-center gap-1.5">
-                    <Award className="w-4 h-4 text-amber-600" />
-                    <span>Institución Educativa</span>
-                  </div>
-                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 font-bold">
-                    {invitation.ceremonyVenue.time}
-                  </span>
-                </div>
-                <p className="font-sans font-bold text-sm text-slate-900 mt-1.5">
-                  {invitation.institution}
-                </p>
-                <p className="text-xs text-slate-600 font-sans mt-0.5">
-                  {invitation.ceremonyVenue.address}
                 </p>
               </div>
             </div>
