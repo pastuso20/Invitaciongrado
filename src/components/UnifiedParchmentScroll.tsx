@@ -21,11 +21,21 @@ import {
   Copy,
   Check,
   ChevronDown,
+  FileSpreadsheet,
+  ExternalLink,
 } from 'lucide-react';
 import L from 'leaflet';
 import { InvitationData, RsvpEntry } from '../types/invitation';
 import { sound } from '../utils/soundEffects';
 import { formatDateSpanish, generateGoogleCalendarUrl, downloadIcsFile } from '../utils/calendar';
+import { GoogleSheetsIntegrationModal } from './GoogleSheetsIntegrationModal';
+import {
+  SheetsConfig,
+  getStoredSheetsConfig,
+  appendRsvpToSheet,
+  sendRsvpDirectlyToGoogleSheets,
+} from '../services/googleSheets';
+import { getAccessToken } from '../services/googleAuth';
 
 interface UnifiedParchmentScrollProps {
   invitation: InvitationData;
@@ -302,68 +312,84 @@ const GoldenQuillEmblem: React.FC = () => (
   </svg>
 );
 
-// Cached birrete shape for 0ms lag during confetti triggers
-let cachedBirreteShape: any = null;
-
 /**
- * Lanza una lluvia de birretes (mortarboards) animados en lugar de confeti convencional
+ * Lanza una lluvia de birretes (mortarboards) animados usando DOM nativo con física 3D real
+ * + confeti dorado/carmesí circular. 100% libre del fallo de rectángulos blancos de WebKit/Safari.
  */
-const triggerBirretesShower = (originY = 0.4, count = 45) => {
-  try {
-    if (typeof confetti.shapeFromText === 'function') {
-      if (!cachedBirreteShape) {
-        cachedBirreteShape = confetti.shapeFromText({ text: '🎓', scalar: 2.2 });
-      }
-      const birreteShape = cachedBirreteShape;
+const spawnDomBirretes = (originY = 0.4, count = 24) => {
+  if (typeof document === 'undefined') return;
+  const startY = typeof window !== 'undefined' ? window.innerHeight * originY : 300;
+  const startX = typeof window !== 'undefined' ? window.innerWidth * 0.5 : 200;
 
-      // Disparo central de birretes
-      confetti({
-        particleCount: count,
-        spread: 100,
-        origin: { y: originY, x: 0.5 },
-        shapes: [birreteShape],
-        scalar: 2.7,
-        ticks: 240,
-        gravity: 0.7,
-        drift: 0.05,
-      });
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('div');
+    el.textContent = '🎓';
+    el.style.position = 'fixed';
+    el.style.left = `${startX}px`;
+    el.style.top = `${startY}px`;
+    el.style.fontSize = `${22 + Math.random() * 16}px`;
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '9999';
+    el.style.userSelect = 'none';
+    el.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.45))';
+    el.style.transformOrigin = 'center center';
 
-      // Disparos festivos laterales para crear el efecto de lanzamiento de birretes
-      setTimeout(() => {
-        confetti({
-          particleCount: Math.round(count * 0.65),
-          angle: 60,
-          spread: 65,
-          origin: { x: 0.15, y: originY + 0.08 },
-          shapes: [birreteShape],
-          scalar: 2.4,
-          ticks: 220,
-          gravity: 0.75,
-        });
-        confetti({
-          particleCount: Math.round(count * 0.65),
-          angle: 120,
-          spread: 65,
-          origin: { x: 0.85, y: originY + 0.08 },
-          shapes: [birreteShape],
-          scalar: 2.4,
-          ticks: 220,
-          gravity: 0.75,
-        });
-      }, 200);
-      return;
+    document.body.appendChild(el);
+
+    // Spread physics: explosive launch upward and outwards, then falling with gravity and rotation
+    const angle = Math.random() * Math.PI * 2;
+    const velocity = 140 + Math.random() * 220;
+    const destX = Math.cos(angle) * velocity + (Math.random() - 0.5) * 90;
+    const destY = Math.sin(angle) * (velocity * 0.5) + 320 + Math.random() * 240;
+    const rot = (Math.random() - 0.5) * 720;
+    const duration = 1600 + Math.random() * 900;
+
+    if (typeof el.animate === 'function') {
+      const anim = el.animate(
+        [
+          { transform: 'translate3d(0, 0, 0) rotate(0deg) scale(0.5)', opacity: 1 },
+          {
+            transform: `translate3d(${destX * 0.5}px, ${destY * 0.3}px, 0) rotate(${rot * 0.4}deg) scale(1.15)`,
+            opacity: 1,
+            offset: 0.35,
+          },
+          {
+            transform: `translate3d(${destX}px, ${destY}px, 0) rotate(${rot}deg) scale(0.85)`,
+            opacity: 0,
+          },
+        ],
+        {
+          duration,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          fill: 'forwards',
+        }
+      );
+      anim.onfinish = () => el.remove();
+    } else {
+      setTimeout(() => el.remove(), 1500);
     }
-  } catch (err) {
-    console.warn('Lluvia de birretes con shapeFromText:', err);
   }
+};
 
-  // Fallback si el navegador no soporta shapeFromText
-  confetti({
-    particleCount: count,
-    spread: 90,
-    origin: { y: originY },
-    colors: ['#f59e0b', '#fbbf24', '#ffffff', '#1e293b'],
-  });
+const triggerBirretesShower = (originY = 0.4, count = 45) => {
+  // 1. Spawns high-fidelity DOM birretes (crisp emoji rendering without canvas texture artifacts)
+  spawnDomBirretes(originY, Math.min(26, Math.round(count * 0.6)));
+
+  // 2. Hardware-accelerated gold, ruby, amber and ivory circle confetti
+  try {
+    confetti({
+      particleCount: Math.round(count * 0.75),
+      spread: 90,
+      origin: { y: originY, x: 0.5 },
+      colors: ['#f59e0b', '#fbbf24', '#dc2626', '#fef3c7', '#ffffff'],
+      shapes: ['circle'],
+      ticks: 200,
+      gravity: 0.8,
+      scalar: 1.1,
+    });
+  } catch (err) {
+    console.warn('Confetti trigger error:', err);
+  }
 };
 
 /* =========================================================================
@@ -416,6 +442,26 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
   // Section ref
   const rsvpRef = useRef<HTMLDivElement>(null);
 
+  // Google Sheets integration state
+  const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(() => getStoredSheetsConfig());
+  const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
+  const [allLocalEntries, setAllLocalEntries] = useState<RsvpEntry[]>([]);
+
+  const loadAllLocalEntries = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        setAllLocalEntries(JSON.parse(raw));
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    loadAllLocalEntries();
+  }, []);
+
   // Measure full content height accurately using ResizeObserver
   useEffect(() => {
     if (!contentMeasureRef.current) return;
@@ -447,12 +493,6 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Total container height when fully unrolled
-  const totalPageHeight = fullContentHeight + 140;
-
-  // Maximum physical scroll distance available in the browser window
-  const maxScrollDistance = Math.max(350, totalPageHeight - viewportHeight);
-
   // High-performance rAF passive scroll listener (zero delay, 60-120fps fluid unrolling)
   useEffect(() => {
     let rAFId: number | null = null;
@@ -475,11 +515,22 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     };
   }, []);
 
-  // PROGRESS COMPUTATION:
-  // Unrolls "poco a poco" from 0% to 100% across the full page scroll journey.
-  // Using >= 0.94 => 1.0 guarantees it hits 100% cleanly at the bottom (preventing the 95% freeze).
-  const rawProgress = maxScrollDistance > 0 ? scrollY / maxScrollDistance : 1;
-  const progress = rawProgress >= 0.94 ? 1 : Math.min(1, Math.max(0, rawProgress));
+  // UNROLL RUNWAY: Physical scroll distance (in px) dedicated to unrolling the parchment.
+  // 360px corresponds to 1 natural swipe on mobile, smoothly unrolling from 0% to 100%.
+  const UNROLL_RUNWAY = 360;
+
+  // Real-time progress computation: unrolls "poco a poco" from 0% to 100% smoothly
+  const rawProgress = scrollY / UNROLL_RUNWAY;
+  const progress = rawProgress >= 0.95 ? 1 : Math.min(1, Math.max(0, rawProgress));
+
+  // PURE PIXEL HEIGHT (STABLE, SMOOTH & CONTINUOUS IN BOTH DIRECTIONS)
+  // Interpolates cleanly from SEMI_OPEN_HEIGHT (350px) to fullContentHeight
+  const currentHeightPx = Math.round(
+    SEMI_OPEN_HEIGHT + progress * (fullContentHeight - SEMI_OPEN_HEIGHT)
+  );
+
+  // Dynamic container height: preserves scroll runway while unrolling and eliminates black void at the bottom
+  const totalPageHeight = Math.max(viewportHeight + UNROLL_RUNWAY, currentHeightPx + 160);
 
   // Audio & birretes feedback driven by scroll progress
   useEffect(() => {
@@ -550,8 +601,8 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
       });
       mapInstanceRef.current = map;
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
         maxZoom: 19,
       }).addTo(map);
 
@@ -593,10 +644,10 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     };
   }, [invitation.partyVenue]);
 
-  // Handle auto-unroll smoothly to the bottom of the page
+  // Handle auto-unroll smoothly to 100% unrolled diploma
   const handleFullUnroll = () => {
     window.scrollTo({
-      top: maxScrollDistance,
+      top: UNROLL_RUNWAY,
       behavior: 'smooth',
     });
   };
@@ -631,9 +682,15 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
       allEntries.unshift(newEntry);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(allEntries));
       localStorage.setItem(USER_RSVP_KEY, JSON.stringify(newEntry));
+      setAllLocalEntries(allEntries);
     } catch {
       // ignore
     }
+
+    // Send directly and automatically to Google Sheets
+    sendRsvpDirectlyToGoogleSheets(newEntry).catch((err) => {
+      console.warn('Direct Google Sheets dispatch:', err);
+    });
 
     sound.playFanfare();
     triggerBirretesShower(0.65, 55);
@@ -655,11 +712,6 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     setTimeout(() => setCopiedAddress(false), 2500);
   };
 
-  // PURE PIXEL HEIGHT (STABLE, SMOOTH & CONTINUOUS IN BOTH DIRECTIONS)
-  // Interpolates cleanly from SEMI_OPEN_HEIGHT (280px) to fullContentHeight with ZERO 'auto' flips!
-  const currentHeightPx = Math.round(
-    SEMI_OPEN_HEIGHT + progress * (fullContentHeight - SEMI_OPEN_HEIGHT)
-  );
 
   return (
     <div
@@ -700,7 +752,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
         </div>
 
         {/* TOP SPINDLE ROD (Turned Brass/Gold Finials matching Reference Image) */}
-        <div className="w-[104%] -mx-[2%] z-30 sticky top-2 block">
+        <div className="w-[104%] -mx-[2%] z-30 relative block">
           <div className="relative flex items-center justify-between h-9 sm:h-10">
             {/* Left reference finial */}
             <ReferenceGoldFinial side="left" />
@@ -1026,6 +1078,10 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
                       ? `Pase Oficial ${existingRsvp.ticketCode} (${1 + existingRsvp.companions} personas)`
                       : 'Registrado como no asistente'}
                   </p>
+                  <p className="text-[11px] text-emerald-800 font-semibold mt-1.5 flex items-center justify-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                    <span>Guardado y registrado en la lista de Google Sheets</span>
+                  </p>
                   {existingRsvp.attending && (
                     <button
                       onClick={() => onOpenPass(existingRsvp)}
@@ -1157,24 +1213,28 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
         </div>
       </div>
 
-      {/* MOBILE STICKY BOTTOM BAR (TRANSPARENT GLASSMORPHISM ALLOWING FULL VIEW OF PARCHMENT) */}
+      {/* MOBILE FLOATING ACTION BAR (CENTERED, SAFE AREA COMPLIANT, ZERO TEXT TRUNCATION) */}
       {progress > 0.08 && (
         <aside
           aria-label="Acciones de la invitación"
-          className="fixed bottom-3 inset-x-3 sm:inset-x-auto sm:w-[350px] mx-auto z-40 glass-panel-translucent rounded-2xl p-1.5 sm:p-2 flex items-center justify-between gap-2 transition-all hover:border-white/30 shadow-2xl"
+          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom,1rem))] left-1/2 -translate-x-1/2 w-[92%] max-w-[360px] z-40 glass-panel-translucent rounded-2xl p-1.5 sm:p-2 flex items-center justify-between gap-2 transition-all hover:border-white/30 shadow-2xl backdrop-blur-md"
         >
           <button
             onClick={() => {
-              if (rsvpRef.current) {
-                rsvpRef.current.scrollIntoView({ behavior: 'smooth' });
-              } else {
+              if (progress < 1) {
                 handleFullUnroll();
+                setTimeout(() => {
+                  rsvpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 400);
+              } else {
+                rsvpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }
             }}
-            className="flex-1 py-2.5 px-3 sm:px-4 rounded-xl glass-btn-amber text-amber-200 hover:text-white font-cinzel font-bold text-xs sm:text-sm tracking-wider transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 select-none drop-shadow-sm active:scale-95"
+            className="flex-1 py-2 px-3 rounded-xl glass-btn-amber text-amber-200 hover:text-white font-cinzel font-bold text-xs sm:text-sm tracking-wider transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 select-none drop-shadow-sm active:scale-95 whitespace-nowrap"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Confirmar Asistencia</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+            <span className="sm:hidden">Confirmar</span>
+            <span className="hidden sm:inline">Confirmar Asistencia</span>
           </button>
 
           <button
@@ -1184,19 +1244,46 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
                 ? 'Pausar: Young, Wild & Free'
                 : 'Reproducir: Young, Wild & Free (Wiz Khalifa & Snoop Dogg)'
             }
-            className={`px-3 py-2.5 rounded-xl glass-btn-icon text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl glass-btn-icon text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
               isMusicPlaying
                 ? 'bg-amber-400/25 border-amber-300/70 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
                 : 'text-amber-200/80 hover:text-amber-100'
             }`}
           >
-            <Music className={`w-4 h-4 ${isMusicPlaying ? 'animate-bounce text-amber-300' : ''}`} />
+            <Music className={`w-3.5 h-3.5 shrink-0 ${isMusicPlaying ? 'animate-bounce text-amber-300' : ''}`} />
             <span className="text-[11px] font-sans font-semibold tracking-wide">
-              {isMusicPlaying ? 'Pausar' : 'Música'}
+              {isMusicPlaying ? 'Pausa' : 'Música'}
             </span>
           </button>
         </aside>
       )}
+
+      {/* Discrete organizer footer shortcut */}
+      <div className="mt-8 mb-4 text-center">
+        <button
+          type="button"
+          onClick={() => setIsSheetsModalOpen(true)}
+          className="text-[10px] text-slate-500 hover:text-amber-400 font-sans transition-colors cursor-pointer opacity-30 hover:opacity-100"
+          title="Configuración de Google Sheets para el Organizador"
+        >
+          ⚙ Hoja de Google Sheets (Organizador)
+        </button>
+      </div>
+
+      {/* GOOGLE SHEETS INTEGRATION MODAL */}
+      <GoogleSheetsIntegrationModal
+        isOpen={isSheetsModalOpen}
+        onClose={() => {
+          setIsSheetsModalOpen(false);
+          setSheetsConfig(getStoredSheetsConfig());
+          loadAllLocalEntries();
+        }}
+        localEntries={allLocalEntries}
+        onSynced={() => {
+          setSheetsConfig(getStoredSheetsConfig());
+          loadAllLocalEntries();
+        }}
+      />
     </div>
   );
 };
