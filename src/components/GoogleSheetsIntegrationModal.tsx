@@ -11,6 +11,10 @@ import {
   Link as LinkIcon,
   X,
   Sparkles,
+  Copy,
+  Check,
+  Code,
+  Send,
 } from 'lucide-react';
 import {
   initAuth,
@@ -26,6 +30,8 @@ import {
   createGraduationSpreadsheet,
   verifySpreadsheetAccess,
   syncEntriesToSheet,
+  testWebhookEndpoint,
+  DEFAULT_WEBHOOK_URL,
 } from '../services/googleSheets';
 import { RsvpEntry } from '../types/invitation';
 
@@ -53,10 +59,86 @@ export const GoogleSheetsIntegrationModal: React.FC<GoogleSheetsIntegrationModal
   const [manualInput, setManualInput] = useState('');
   const [isLinkingManual, setIsLinkingManual] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState(() => localStorage.getItem('graduation_sheets_webhook_url') || '');
+  const [webhookUrl, setWebhookUrl] = useState(
+    () =>
+      localStorage.getItem('graduation_sheets_webhook_url') ||
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_SHEETS_WEBHOOK_URL) ||
+      DEFAULT_WEBHOOK_URL
+  );
   const [showWebhookInput, setShowWebhookInput] = useState(false);
   const [savedWebhook, setSavedWebhook] = useState(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const APPS_SCRIPT_CODE = `function doPost(e) {
+  var lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Confirmaciones") || ss.getActiveSheet();
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(["Fecha y Hora", "Código de Pase", "Nombre Completo", "¿Asistirá?", "Acompañantes", "Pases Totales", "Canción Sugerida", "Mensaje de Felicitación"]);
+    }
+    var data = {};
+    if (e && e.postData && e.postData.contents) {
+      try { data = JSON.parse(e.postData.contents); } catch (err) { data = e.parameter || {}; }
+    } else if (e && e.parameter) {
+      data = e.parameter;
+    }
+    var fecha = data.fecha || Utilities.formatDate(new Date(), "America/Bogota", "dd/MM/yyyy, hh:mm a");
+    var codigo = data.codigo || "";
+    var nombre = data.nombre || "Invitado";
+    var asistira = data.asistira || "SÍ";
+    var acompanantes = (data.acompanantes !== undefined && data.acompanantes !== null) ? data.acompanantes : 0;
+    var pasesTotales = (data.pasesTotales !== undefined && data.pasesTotales !== null) ? data.pasesTotales : (asistira === "SÍ" ? 1 + Number(acompanantes) : 0);
+    var cancion = data.cancion || "-";
+    var mensaje = data.mensaje || "-";
+
+    sheet.appendRow([fecha, codigo, nombre, asistira, acompanantes, pasesTotales, cancion, mensaje]);
+    return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({ status: "online", message: "Webhook activo" })).setMimeType(ContentService.MimeType.JSON);
+}`;
+
+  const handleCopyScript = () => {
+    navigator.clipboard.writeText(APPS_SCRIPT_CODE);
+    setCopiedScript(true);
+    setTimeout(() => setCopiedScript(false), 2500);
+  };
+
+  const handleTestWebhook = async () => {
+    const url = webhookUrl.trim();
+    if (!url) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Por favor ingresa primero la URL del Webhook para probar la conexión.',
+      });
+      return;
+    }
+    setIsTestingWebhook(true);
+    setStatusMessage(null);
+    try {
+      const res = await testWebhookEndpoint(url);
+      setStatusMessage({
+        type: res.success ? 'success' : 'error',
+        text: res.message,
+      });
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err?.message || 'Error probando la conexión.',
+      });
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
 
   const handleSaveWebhook = (e: React.FormEvent) => {
     e.preventDefault();
@@ -496,6 +578,65 @@ export const GoogleSheetsIntegrationModal: React.FC<GoogleSheetsIntegrationModal
               <p className="text-[11px] text-emerald-300/80 font-sans text-center">
                 ✓ Cada nueva confirmación enviada en el formulario se guardará automáticamente en esta hoja.
               </p>
+
+              {/* Webhook Configuration for public deploy */}
+              <div className="pt-2 border-t border-emerald-500/30">
+                <button
+                  type="button"
+                  onClick={() => setShowWebhookInput(!showWebhookInput)}
+                  className="w-full flex items-center justify-between text-xs text-emerald-300 hover:text-emerald-100 font-sans font-medium cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Conexión Webhook para Invitados (Despliegue Web)</span>
+                  </div>
+                  <span className="text-amber-400 text-xs font-bold">{showWebhookInput ? '▲ Ocultar' : '▼ Ver / Configurar'}</span>
+                </button>
+
+                {showWebhookInput && (
+                  <div className="mt-3 p-3 rounded-lg bg-black/40 border border-emerald-500/30 space-y-2.5 text-xs font-sans">
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Para que los invitados guarden automáticamente desde sus teléfonos sin iniciar sesión:
+                    </p>
+                    <div className="flex items-center justify-between gap-2 p-2 rounded bg-slate-900 border border-slate-700">
+                      <span className="text-[11px] text-slate-300 truncate">1. Script para Apps Script</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyScript}
+                        className="px-2 py-1 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 cursor-pointer flex items-center gap-1"
+                      >
+                        {copiedScript ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedScript ? '¡Copiado!' : 'Copiar'}</span>
+                      </button>
+                    </div>
+                    <form onSubmit={handleSaveWebhook} className="space-y-2">
+                      <input
+                        type="url"
+                        placeholder="https://script.google.com/macros/s/.../exec"
+                        value={webhookUrl}
+                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-xs font-mono outline-none focus:border-emerald-500"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          className="flex-1 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer"
+                        >
+                          {savedWebhook ? '¡Guardado!' : 'Guardar URL'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleTestWebhook}
+                          disabled={isTestingWebhook || !webhookUrl.trim()}
+                          className="py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 text-xs font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          {isTestingWebhook ? 'Probando...' : '🧪 Probar'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -563,41 +704,79 @@ export const GoogleSheetsIntegrationModal: React.FC<GoogleSheetsIntegrationModal
                 )}
               </div>
 
-              {/* Option 3: Direct Webhook / Apps Script URL */}
-              <div className="p-3.5 rounded-xl bg-[#111927]/70 border border-slate-700 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setShowWebhookInput(!showWebhookInput)}
-                  className="w-full flex items-center justify-between text-xs text-slate-300 hover:text-white font-sans font-medium cursor-pointer"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>O usar URL de Google Apps Script (Webhook)</span>
+              {/* Option 3: Direct Webhook / Apps Script URL (Crucial for Public Deploy) */}
+              <div className="p-4 rounded-xl bg-gradient-to-b from-[#0d1e17] to-[#0a1510] border border-emerald-500/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold text-white font-cinzel">
+                      Conexión Webhook (Recomendada para Despliegue)
+                    </span>
                   </div>
-                  <span className="text-amber-400 text-xs">{showWebhookInput ? 'Ocultar' : 'Mostrar'}</span>
-                </button>
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/30">
+                    Público
+                  </span>
+                </div>
 
-                {showWebhookInput && (
-                  <form onSubmit={handleSaveWebhook} className="pt-2 space-y-2 font-sans text-xs">
-                    <p className="text-[11px] text-slate-400 leading-snug">
-                      Pega aquí la URL de tu script de Google desplegado como Web App para recibir confirmaciones de forma directa:
-                    </p>
-                    <input
-                      type="url"
-                      placeholder="https://script.google.com/macros/s/.../exec"
-                      value={webhookUrl}
-                      onChange={(e) => setWebhookUrl(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-500 text-xs outline-none focus:border-amber-500 font-mono"
-                    />
+                <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                  Para que los <strong>invitados desde cualquier celular o PC</strong> guarden automáticamente sus datos en tu Google Sheet sin tener que iniciar sesión, usa este Webhook de Google Apps Script:
+                </p>
+
+                {/* Step 1: Copy script */}
+                <div className="p-2.5 rounded-lg bg-black/50 border border-slate-700/80 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <Code className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div className="text-[11px] text-slate-300 truncate">
+                      <span>Paso 1: Copia el script listo para Apps Script</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyScript}
+                    className="px-2.5 py-1.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-sans font-bold flex items-center gap-1.5 border border-amber-400/40 transition-colors shrink-0 cursor-pointer"
+                  >
+                    {copiedScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedScript ? '¡Copiado!' : 'Copiar Código'}</span>
+                  </button>
+                </div>
+
+                {/* Steps instructions */}
+                <ol className="text-[11px] text-slate-300/90 font-sans list-decimal list-inside space-y-1 pl-1">
+                  <li>En tu Google Sheet, ve a: <strong>Extensiones &gt; Apps Script</strong>.</li>
+                  <li>Borra el código que haya, pega el código copiado y haz clic en <strong>Guardar</strong>.</li>
+                  <li>Haz clic en <strong>Implementar &gt; Nueva implementación</strong>, selecciona tipo <strong>Aplicación web</strong>.</li>
+                  <li>Configura: <em>Ejecutar como</em> = <strong>Yo</strong>, y <em>Quién tiene acceso</em> = <strong className="text-amber-300">Cualquier persona</strong>.</li>
+                  <li>Haz clic en <strong>Implementar</strong>, autoriza los permisos y copia la URL que termina en <code>/exec</code>.</li>
+                </ol>
+
+                {/* Step 2: Paste URL and Test */}
+                <form onSubmit={handleSaveWebhook} className="space-y-2 pt-1 font-sans text-xs">
+                  <input
+                    type="url"
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-500 text-xs outline-none focus:border-emerald-500 font-mono"
+                  />
+                  <div className="flex gap-2">
                     <button
                       type="submit"
-                      className="w-full py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{savedWebhook ? '¡Guardado con éxito!' : 'Guardar Enlace Directo Webhook'}</span>
+                      <span>{savedWebhook ? '¡Guardado!' : 'Guardar URL'}</span>
                     </button>
-                  </form>
-                )}
+                    <button
+                      type="button"
+                      onClick={handleTestWebhook}
+                      disabled={isTestingWebhook || !webhookUrl.trim()}
+                      className="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+                    >
+                      <Send className={`w-3.5 h-3.5 ${isTestingWebhook ? 'animate-spin' : ''}`} />
+                      <span>{isTestingWebhook ? 'Probando...' : '🧪 Probar Conexión'}</span>
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}

@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { Send, CheckCircle, Heart, Music, Users, Utensils, Sparkles, Ticket } from 'lucide-react';
 import { InvitationData, RsvpEntry } from '../types/invitation';
 import { sound } from '../utils/soundEffects';
+import { sendRsvpDirectlyToGoogleSheets } from '../services/googleSheets';
 
 interface RsvpSectionProps {
   invitation: InvitationData;
@@ -79,6 +80,11 @@ export const RsvpSection: React.FC<RsvpSectionProps> = ({
     } catch {
       // ignore storage error
     }
+
+    // Send directly and automatically to Google Sheets
+    sendRsvpDirectlyToGoogleSheets(newEntry).catch((err) => {
+      console.warn('Direct Google Sheets dispatch from RsvpSection:', err);
+    });
 
     // Sound and celebration
     sound.playFanfare();

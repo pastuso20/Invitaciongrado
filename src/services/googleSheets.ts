@@ -326,6 +326,9 @@ export const syncEntriesToSheet = async (
   return { syncedCount: newEntries.length };
 };
 
+export const DEFAULT_WEBHOOK_URL =
+  'https://script.google.com/macros/s/AKfycbyKnoNBTrPiSIt8YhfmFj1jEwdYsk_I6DtRPImZTSAl14hQK6dchkDxsWq6cbyztlXMcQ/exec';
+
 /**
  * Directly submits RSVP to Google Sheets automatically when a user confirms attendance.
  * Works seamlessly without requiring guests to sign in.
@@ -353,14 +356,15 @@ export const sendRsvpDirectlyToGoogleSheets = async (
   // 1. Send via Google Apps Script Webhook if configured (no guest login needed)
   const webhookUrl =
     (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_SHEETS_WEBHOOK_URL) ||
-    localStorage.getItem('graduation_sheets_webhook_url');
+    localStorage.getItem('graduation_sheets_webhook_url') ||
+    DEFAULT_WEBHOOK_URL;
 
   if (webhookUrl && webhookUrl.startsWith('http')) {
     try {
       await fetch(webhookUrl, {
         method: 'POST',
         mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload),
       });
       sent = true;
@@ -393,4 +397,48 @@ export const sendRsvpDirectlyToGoogleSheets = async (
   } catch {}
 
   return { success: sent, method };
+};
+
+/**
+ * Tests connection to a Google Apps Script Webhook URL by sending a sample ping entry
+ */
+export const testWebhookEndpoint = async (
+  url: string
+): Promise<{ success: boolean; message: string }> => {
+  if (!url || !url.startsWith('http')) {
+    return { success: false, message: 'La URL ingresada no es válida. Debe comenzar con https://script.google.com/macros/s/...' };
+  }
+
+  const testPayload = {
+    fecha: new Date().toLocaleString('es-CO', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }),
+    codigo: 'TEST-0001',
+    nombre: '🧪 Prueba de Conexión (Organizador)',
+    asistira: 'SÍ',
+    acompanantes: 1,
+    pasesTotales: 2,
+    cancion: 'Música de Celebración',
+    mensaje: '¡Conexión verificada exitosamente entre la invitación y Google Sheets!',
+  };
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(testPayload),
+    });
+
+    return {
+      success: true,
+      message: '¡Prueba enviada! Abre tu Google Sheet para confirmar que apareció la fila con código "TEST-0001".',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Error de red al conectar con el Webhook de Google Apps Script.',
+    };
+  }
 };
