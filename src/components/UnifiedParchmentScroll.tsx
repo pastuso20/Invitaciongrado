@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import confetti from 'canvas-confetti';
 import {
   GraduationCap,
   Sparkles,
@@ -168,11 +167,8 @@ const ReferenceGoldFinial: React.FC<{ side: 'left' | 'right' }> = ({ side }) => 
 };
 
 /** 3. Authentic Curled Parchment Paper Roll with Spiral Ends and Red Cord (Reference Image Design) */
-const RealisticParchmentRoll: React.FC<{ progress: number; onFullUnroll: () => void }> = ({
-  progress,
-  onFullUnroll,
-}) => {
-  const isFullyOpen = progress >= 0.96;
+const RealisticParchmentRoll: React.FC<{ progress: number }> = ({ progress }) => {
+  const isFullyOpen = progress >= 0.98;
   const isSemiOpen = progress < 0.05;
 
   return (
@@ -245,25 +241,21 @@ const RealisticParchmentRoll: React.FC<{ progress: number; onFullUnroll: () => v
         <div className="w-5 h-7 bg-gradient-to-b from-amber-400 via-amber-500 to-amber-700 rounded-b-md shadow" />
       </div>
 
-      {/* Floating Action Hint Button */}
+      {/* Scroll Guidance Indicator (desenrollado poco a poco sin auto-apertura forzada) */}
       <div
         className={`flex flex-col items-center justify-center mt-2.5 text-center transition-opacity duration-300 ${
           isFullyOpen ? 'opacity-0 pointer-events-none h-0 overflow-hidden' : 'opacity-100'
         }`}
       >
-        <button
-          type="button"
-          onClick={onFullUnroll}
-          className="px-4 py-1.5 rounded-full glass-panel-translucent text-amber-200 hover:text-white text-xs font-sans font-semibold shadow-lg flex items-center gap-1.5 cursor-pointer hover:border-white/30 transition-all active:scale-95"
-        >
+        <div className="px-4 py-1.5 rounded-full glass-panel-translucent text-amber-200 text-xs font-sans font-semibold shadow-lg flex items-center gap-1.5 select-none pointer-events-none">
           <ChevronDown className="w-3.5 h-3.5 text-amber-300 animate-bounce" />
           <span>
             {isSemiOpen
               ? 'Desliza hacia abajo para desenrollar el diploma'
-              : `Desenrollando (${Math.round(progress * 100)}%) · Toca para abrir`}
+              : `Desenrollando poco a poco (${Math.round(progress * 100)}%)`}
           </span>
           <ChevronDown className="w-3.5 h-3.5 text-amber-300 animate-bounce" />
-        </button>
+        </div>
       </div>
     </div>
   );
@@ -312,85 +304,7 @@ const GoldenQuillEmblem: React.FC = () => (
   </svg>
 );
 
-/**
- * Lanza una lluvia de birretes (mortarboards) animados usando DOM nativo con física 3D real
- * + confeti dorado/carmesí circular. 100% libre del fallo de rectángulos blancos de WebKit/Safari.
- */
-const spawnDomBirretes = (originY = 0.4, count = 24) => {
-  if (typeof document === 'undefined') return;
-  const startY = typeof window !== 'undefined' ? window.innerHeight * originY : 300;
-  const startX = typeof window !== 'undefined' ? window.innerWidth * 0.5 : 200;
 
-  for (let i = 0; i < count; i++) {
-    const el = document.createElement('div');
-    el.textContent = '🎓';
-    el.style.position = 'fixed';
-    el.style.left = `${startX}px`;
-    el.style.top = `${startY}px`;
-    el.style.fontSize = `${22 + Math.random() * 16}px`;
-    el.style.pointerEvents = 'none';
-    el.style.zIndex = '9999';
-    el.style.userSelect = 'none';
-    el.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.45))';
-    el.style.transformOrigin = 'center center';
-
-    document.body.appendChild(el);
-
-    // Spread physics: explosive launch upward and outwards, then falling with gravity and rotation
-    const angle = Math.random() * Math.PI * 2;
-    const velocity = 140 + Math.random() * 220;
-    const destX = Math.cos(angle) * velocity + (Math.random() - 0.5) * 90;
-    const destY = Math.sin(angle) * (velocity * 0.5) + 320 + Math.random() * 240;
-    const rot = (Math.random() - 0.5) * 720;
-    const duration = 1600 + Math.random() * 900;
-
-    if (typeof el.animate === 'function') {
-      const anim = el.animate(
-        [
-          { transform: 'translate3d(0, 0, 0) rotate(0deg) scale(0.5)', opacity: 1 },
-          {
-            transform: `translate3d(${destX * 0.5}px, ${destY * 0.3}px, 0) rotate(${rot * 0.4}deg) scale(1.15)`,
-            opacity: 1,
-            offset: 0.35,
-          },
-          {
-            transform: `translate3d(${destX}px, ${destY}px, 0) rotate(${rot}deg) scale(0.85)`,
-            opacity: 0,
-          },
-        ],
-        {
-          duration,
-          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-          fill: 'forwards',
-        }
-      );
-      anim.onfinish = () => el.remove();
-    } else {
-      setTimeout(() => el.remove(), 1500);
-    }
-  }
-};
-
-const triggerBirretesShower = (originY = 0.4, count = 45) => {
-  // 1. Spawns high-fidelity DOM birretes (crisp emoji rendering without canvas texture artifacts)
-  spawnDomBirretes(originY, Math.min(26, Math.round(count * 0.6)));
-
-  // 2. Hardware-accelerated gold, ruby, amber and ivory circle confetti
-  try {
-    confetti({
-      particleCount: Math.round(count * 0.75),
-      spread: 90,
-      origin: { y: originY, x: 0.5 },
-      colors: ['#f59e0b', '#fbbf24', '#dc2626', '#fef3c7', '#ffffff'],
-      shapes: ['circle'],
-      ticks: 200,
-      gravity: 0.8,
-      scalar: 1.1,
-    });
-  } catch (err) {
-    console.warn('Confetti trigger error:', err);
-  }
-};
 
 /* =========================================================================
    MAIN COMPONENT: SCROLL MECHANIC FROM START TO END OF PAGE (GLITCH-FREE)
@@ -515,13 +429,13 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     };
   }, []);
 
-  // UNROLL RUNWAY: Physical scroll distance (in px) dedicated to unrolling the parchment.
-  // 360px corresponds to 1 natural swipe on mobile, smoothly unrolling from 0% to 100%.
-  const UNROLL_RUNWAY = 360;
+  // UNROLL DISTANCE: Physical scroll distance (in px) dedicated to unrolling the parchment poco a poco.
+  // Dynamically calibrated to allow a steady, progressive reveal as the user scrolls naturally (~1100px of scrolling).
+  const UNROLL_DISTANCE = Math.max(800, Math.round((fullContentHeight - SEMI_OPEN_HEIGHT) * 0.75));
 
-  // Real-time progress computation: unrolls "poco a poco" from 0% to 100% smoothly
-  const rawProgress = scrollY / UNROLL_RUNWAY;
-  const progress = rawProgress >= 0.95 ? 1 : Math.min(1, Math.max(0, rawProgress));
+  // Real-time progress computation: unrolls "poco a poco" from 0% to 100% strictly following user scroll
+  const rawProgress = scrollY / UNROLL_DISTANCE;
+  const progress = rawProgress >= 0.98 ? 1 : Math.min(1, Math.max(0, rawProgress));
 
   // PURE PIXEL HEIGHT (STABLE, SMOOTH & CONTINUOUS IN BOTH DIRECTIONS)
   // Interpolates cleanly from SEMI_OPEN_HEIGHT (350px) to fullContentHeight
@@ -530,9 +444,9 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
   );
 
   // Dynamic container height: preserves scroll runway while unrolling and eliminates black void at the bottom
-  const totalPageHeight = Math.max(viewportHeight + UNROLL_RUNWAY, currentHeightPx + 160);
+  const totalPageHeight = Math.max(viewportHeight + UNROLL_DISTANCE, currentHeightPx + 160);
 
-  // Audio & birretes feedback driven by scroll progress
+  // Audio feedback driven by scroll progress (without confetti or gorros)
   useEffect(() => {
     if (scrollY > 35 && !hasPlayedUnrollSound.current) {
       hasPlayedUnrollSound.current = true;
@@ -546,7 +460,6 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     if (progress >= 0.98 && !hasPlayedFanfare.current) {
       hasPlayedFanfare.current = true;
       sound.playFanfare();
-      triggerBirretesShower(0.35, 45);
     }
   }, [scrollY, progress]);
 
@@ -644,13 +557,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     };
   }, [invitation.partyVenue]);
 
-  // Handle auto-unroll smoothly to 100% unrolled diploma
-  const handleFullUnroll = () => {
-    window.scrollTo({
-      top: UNROLL_RUNWAY,
-      behavior: 'smooth',
-    });
-  };
+
 
   // Handle rolling back smoothly up to the top of the page
   const handleRollBack = () => {
@@ -693,7 +600,6 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     });
 
     sound.playFanfare();
-    triggerBirretesShower(0.65, 55);
 
     setExistingRsvp(newEntry);
     setJustSubmitted(true);
@@ -1209,7 +1115,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
             BOTTOM ROLLED PARCHMENT APPARATUS (CONTINUOUS & UNIFIED WITH ZERO FLICKER)
             ========================================================================= */}
         <div className="w-full relative z-30">
-          <RealisticParchmentRoll progress={progress} onFullUnroll={handleFullUnroll} />
+          <RealisticParchmentRoll progress={progress} />
         </div>
       </div>
 
@@ -1221,14 +1127,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
         >
           <button
             onClick={() => {
-              if (progress < 1) {
-                handleFullUnroll();
-                setTimeout(() => {
-                  rsvpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 400);
-              } else {
-                rsvpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }
+              rsvpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}
             className="flex-1 py-2 px-3 rounded-xl glass-btn-amber text-amber-200 hover:text-white font-cinzel font-bold text-xs sm:text-sm tracking-wider transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 select-none drop-shadow-sm active:scale-95 whitespace-nowrap"
           >
