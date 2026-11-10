@@ -99,13 +99,6 @@ export const RsvpSection: React.FC<RsvpSectionProps> = ({
     setExistingRsvp(newEntry);
     setJustSubmitted(true);
     setIsSubmitting(false);
-
-    // Open digital pass automatically
-    if (newEntry.attending) {
-      setTimeout(() => {
-        onOpenPass(newEntry);
-      }, 500);
-    }
   };
 
   const handleEditRsvp = () => {
@@ -149,38 +142,32 @@ export const RsvpSection: React.FC<RsvpSectionProps> = ({
 
         {/* Existing RSVP Banner (if already registered) */}
         {existingRsvp && !justSubmitted && (
-          <div className="mb-8 p-5 rounded-xl bg-amber-500/10 border border-amber-400/40 text-stone-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-full bg-amber-500/20 text-amber-300 shrink-0">
-                <CheckCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-cinzel font-bold text-sm text-amber-200">
-                  ¡Ya estás registrado, {existingRsvp.name}!
-                </p>
-                <p className="text-xs text-slate-300 font-sans mt-0.5">
-                  {existingRsvp.attending
-                    ? `Asistencia confirmada para ${1 + existingRsvp.companions} personas · Pase ${existingRsvp.ticketCode}`
-                    : 'Registraste que lamentablemente no podrás asistir.'}
-                </p>
-              </div>
+          <div className="mb-8 p-6 rounded-xl bg-amber-500/10 border border-amber-400/40 text-stone-200 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto">
+              <CheckCircle className="w-6 h-6" />
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              {existingRsvp.attending && (
-                <button
-                  onClick={() => onOpenPass(existingRsvp)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold font-sans transition-colors cursor-pointer shadow-md"
-                >
-                  <Ticket className="w-4 h-4" />
-                  <span>Ver Mi Pase</span>
-                </button>
-              )}
+            <h3 className="font-cinzel font-bold text-base sm:text-lg text-amber-200">
+              {existingRsvp.attending
+                ? '¡Te Esperamos con Mucha Alegría!'
+                : '¡Muchas Gracias por Avisarnos!'}
+            </h3>
+            <p className="text-sm font-cormorant italic text-stone-300 max-w-md mx-auto leading-relaxed">
+              {existingRsvp.attending
+                ? `¡Muchas gracias, ${existingRsvp.name}! Tu lugar de honor está reservado. Será un gran placer contar con tu grata compañía para celebrar juntos nuestra graduación.`
+                : `Agradecemos mucho tus buenos deseos, ${existingRsvp.name}. ¡Sabemos que nos acompañarás de corazón en este día!`
+              }
+            </p>
+            {existingRsvp.attending && existingRsvp.companions > 0 && (
+              <p className="text-xs text-amber-300 font-sans font-semibold">
+                👥 Asistencia confirmada para {1 + existingRsvp.companions} personas
+              </p>
+            )}
+            <div className="pt-2">
               <button
                 onClick={handleEditRsvp}
-                className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-stone-300 text-xs font-sans transition-colors cursor-pointer"
+                className="text-xs text-stone-400 hover:text-amber-300 underline font-sans transition-colors cursor-pointer"
               >
-                Modificar
+                ¿Deseas modificar tu respuesta?
               </button>
             </div>
           </div>

@@ -603,12 +603,6 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
 
     setExistingRsvp(newEntry);
     setJustSubmitted(true);
-
-    if (newEntry.attending) {
-      setTimeout(() => {
-        onOpenPass(newEntry);
-      }, 450);
-    }
   };
 
   const handleCopyAddress = () => {
@@ -622,7 +616,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
   return (
     <div
       style={{ minHeight: `${totalPageHeight}px` }}
-      className="relative w-full flex flex-col items-center justify-start pt-3 sm:pt-6 pb-20 bg-radial from-[#0f172a] via-[#070b14] to-[#02050b] px-3 sm:px-4 overflow-x-hidden selection:bg-amber-500/30 selection:text-amber-200"
+      className="relative w-full flex flex-col items-center justify-start pt-16 sm:pt-20 pb-20 bg-radial from-[#0f172a] via-[#070b14] to-[#02050b] px-3 sm:px-4 overflow-x-hidden selection:bg-amber-500/30 selection:text-amber-200"
     >
       {/* Background radiant depth auras */}
       <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
@@ -973,30 +967,38 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
                 </h3>
               </div>
 
-              {existingRsvp && !justSubmitted ? (
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-xs font-sans text-center shadow-sm">
-                  <CheckCircle className="w-6 h-6 text-emerald-700 mx-auto mb-1.5" />
-                  <p className="font-bold text-sm text-slate-950">
-                    ¡Confirmación registrada para {existingRsvp.name}!
-                  </p>
-                  <p className="text-xs text-slate-600 mt-1">
+              {existingRsvp ? (
+                <div className="text-center py-6 px-3 space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-emerald-400 text-white flex items-center justify-center mx-auto shadow-md">
+                    <CheckCircle className="w-8 h-8" />
+                  </div>
+                  <h3 className="font-cinzel text-lg sm:text-xl font-bold text-slate-900">
                     {existingRsvp.attending
-                      ? `Pase Oficial ${existingRsvp.ticketCode} (${1 + existingRsvp.companions} personas)`
-                      : 'Registrado como no asistente'}
+                      ? '¡Te Esperamos con Mucha Alegría!'
+                      : '¡Muchas Gracias por Avisarnos!'}
+                  </h3>
+                  <p className="font-cormorant italic text-base sm:text-lg text-slate-800 max-w-md mx-auto leading-relaxed">
+                    {existingRsvp.attending
+                      ? `¡Muchas gracias, ${existingRsvp.name}! Tu lugar de honor está reservado. Será un gran honor y alegría contar con tu presencia para celebrar juntos este gran logro.`
+                      : `Agradecemos mucho tu respuesta y cariño, ${existingRsvp.name}. ¡Sabemos que nos acompañarás de corazón en este día tan especial!`}
                   </p>
-                  <p className="text-[11px] text-emerald-800 font-semibold mt-1.5 flex items-center justify-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                    <span>Guardado y registrado en la lista de Google Sheets</span>
-                  </p>
-                  {existingRsvp.attending && (
-                    <button
-                      onClick={() => onOpenPass(existingRsvp)}
-                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-xs shadow-md hover:from-amber-500 hover:to-amber-400 cursor-pointer"
-                    >
-                      <Ticket className="w-4 h-4" />
-                      <span>Ver Mi Pase Digital</span>
-                    </button>
+                  {existingRsvp.attending && existingRsvp.companions > 0 && (
+                    <p className="text-xs font-sans text-amber-900 font-semibold bg-amber-200/70 py-1.5 px-3 rounded-full inline-block border border-amber-300">
+                      👥 Asistencia confirmada para {1 + existingRsvp.companions} personas
+                    </p>
                   )}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExistingRsvp(null);
+                        setJustSubmitted(false);
+                      }}
+                      className="text-[11px] text-slate-500 hover:text-amber-800 underline font-sans transition-colors cursor-pointer"
+                    >
+                      ¿Deseas modificar o registrar otra respuesta?
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleRsvpSubmit} className="space-y-3.5 font-sans text-xs">
@@ -1093,7 +1095,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
                     className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-cinzel font-black text-sm tracking-wider shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Confirmar Asistencia y Obtener Pase</span>
+                    <span>Confirmar Asistencia</span>
                   </button>
                 </form>
               )}
@@ -1119,43 +1121,41 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
         </div>
       </div>
 
-      {/* MOBILE FLOATING ACTION BAR (CENTERED, SAFE AREA COMPLIANT, ZERO TEXT TRUNCATION) */}
-      {progress > 0.08 && (
-        <aside
-          aria-label="Acciones de la invitación"
-          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom,1rem))] left-1/2 -translate-x-1/2 w-[92%] max-w-[360px] z-40 glass-panel-translucent rounded-2xl p-1.5 sm:p-2 flex items-center justify-between gap-2 transition-all hover:border-white/30 shadow-2xl backdrop-blur-md"
+      {/* FLOATING ACTION BAR AT THE TOP (SUBTLE, TRANSLUCENT, SAFE AREA COMPLIANT) */}
+      <aside
+        aria-label="Acciones de la invitación"
+        className="fixed top-[max(0.75rem,env(safe-area-inset-top,0.75rem))] left-1/2 -translate-x-1/2 w-[92%] max-w-[360px] z-50 bg-[#0c121e]/85 border border-amber-500/40 rounded-2xl p-1.5 sm:p-2 flex items-center justify-between gap-2 shadow-2xl backdrop-blur-md transition-all hover:border-amber-400/60"
+      >
+        <button
+          onClick={() => {
+            rsvpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-cinzel font-bold text-xs sm:text-sm tracking-wider transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 select-none shadow-md active:scale-95 whitespace-nowrap"
         >
-          <button
-            onClick={() => {
-              rsvpRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-            className="flex-1 py-2 px-3 rounded-xl glass-btn-amber text-amber-200 hover:text-white font-cinzel font-bold text-xs sm:text-sm tracking-wider transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 select-none drop-shadow-sm active:scale-95 whitespace-nowrap"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-            <span className="sm:hidden">Confirmar</span>
-            <span className="hidden sm:inline">Confirmar Asistencia</span>
-          </button>
+          <Sparkles className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+          <span className="sm:hidden">Confirmar</span>
+          <span className="hidden sm:inline">Confirmar Asistencia</span>
+        </button>
 
-          <button
-            onClick={onToggleMusic}
-            title={
-              isMusicPlaying
-                ? 'Pausar: Young, Wild & Free'
-                : 'Reproducir: Young, Wild & Free (Wiz Khalifa & Snoop Dogg)'
-            }
-            className={`px-3 py-2 rounded-xl glass-btn-icon text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
-              isMusicPlaying
-                ? 'bg-amber-400/25 border-amber-300/70 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
-                : 'text-amber-200/80 hover:text-amber-100'
-            }`}
-          >
-            <Music className={`w-3.5 h-3.5 shrink-0 ${isMusicPlaying ? 'animate-bounce text-amber-300' : ''}`} />
-            <span className="text-[11px] font-sans font-semibold tracking-wide">
-              {isMusicPlaying ? 'Pausa' : 'Música'}
-            </span>
-          </button>
-        </aside>
-      )}
+        <button
+          onClick={onToggleMusic}
+          title={
+            isMusicPlaying
+              ? 'Pausar: Young, Wild & Free'
+              : 'Reproducir: Young, Wild & Free (Wiz Khalifa & Snoop Dogg)'
+          }
+          className={`px-3 py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 border ${
+            isMusicPlaying
+              ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
+              : 'bg-slate-900/80 border-slate-700/80 text-amber-200/80 hover:text-amber-100 hover:border-amber-500/40'
+          }`}
+        >
+          <Music className={`w-3.5 h-3.5 shrink-0 ${isMusicPlaying ? 'animate-bounce text-amber-300' : ''}`} />
+          <span className="text-[11px] font-sans font-semibold tracking-wide">
+            {isMusicPlaying ? 'Pausa' : 'Música'}
+          </span>
+        </button>
+      </aside>
 
       {/* Discrete organizer footer shortcut */}
       <div className="mt-8 mb-4 text-center">
