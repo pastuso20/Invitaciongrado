@@ -83,7 +83,9 @@ class SoundController {
     }
   }
 
-  /** Tactile parchment unroll flutter */
+  private unrollBuffer: AudioBuffer | null = null;
+
+  /** Tactile parchment unroll flutter (cached for 0ms lag on scroll) */
   public playUnrollSound() {
     if (this.isMuted) return;
     const ctx = this.getContext();
@@ -91,30 +93,32 @@ class SoundController {
 
     try {
       const now = ctx.currentTime;
-      const bufferSize = Math.floor(ctx.sampleRate * 1.5);
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
+      if (!this.unrollBuffer) {
+        const bufferSize = Math.floor(ctx.sampleRate * 0.4);
+        this.unrollBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = this.unrollBuffer.getChannelData(0);
 
-      for (let i = 0; i < bufferSize; i++) {
-        const t = i / ctx.sampleRate;
-        const envelope = Math.sin((t / 1.5) * Math.PI) * (0.8 + 0.2 * Math.sin(t * 18));
-        data[i] = (Math.random() * 2 - 1) * envelope;
+        for (let i = 0; i < bufferSize; i++) {
+          const t = i / ctx.sampleRate;
+          const envelope = Math.sin((t / 0.4) * Math.PI) * (0.8 + 0.2 * Math.sin(t * 18));
+          data[i] = (Math.random() * 2 - 1) * envelope;
+        }
       }
 
       const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
+      noise.buffer = this.unrollBuffer;
 
       const filter = ctx.createBiquadFilter();
       filter.type = 'bandpass';
       filter.frequency.setValueAtTime(320, now);
-      filter.frequency.exponentialRampToValueAtTime(1200, now + 0.8);
-      filter.frequency.exponentialRampToValueAtTime(500, now + 1.4);
+      filter.frequency.exponentialRampToValueAtTime(1000, now + 0.25);
+      filter.frequency.exponentialRampToValueAtTime(500, now + 0.38);
       filter.Q.setValueAtTime(1.5, now);
 
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.01, now);
-      gain.gain.linearRampToValueAtTime(0.14, now + 0.2);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.45);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.39);
 
       noise.connect(filter);
       filter.connect(gain);

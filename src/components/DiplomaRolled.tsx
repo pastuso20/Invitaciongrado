@@ -150,12 +150,6 @@ export const DiplomaRolled: React.FC<DiplomaRolledProps> = ({
               <div className="absolute top-2 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#b3882f] to-transparent opacity-60" />
               <div className="absolute bottom-2 left-6 right-6 h-[1px] bg-gradient-to-r from-transparent via-[#b3882f] to-transparent opacity-60" />
 
-              {/* Decorative classical latin script watermarked subtly on the parchment body */}
-              <div className="absolute inset-0 flex items-center justify-between px-10 opacity-15 pointer-events-none select-none font-cormorant italic text-xs text-amber-950">
-                <span>Ad augusta per angusta</span>
-                <span>Magna cum laude</span>
-                <span>Universitas Honorem</span>
-              </div>
             </div>
 
             {/* Scroll End Right Cap (rolled edge curl) */}

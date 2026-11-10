@@ -39,8 +39,8 @@ interface UnifiedParchmentScrollProps {
 const STORAGE_KEY = 'graduation_invitation_rsvps_v1';
 const USER_RSVP_KEY = 'graduation_invitation_my_rsvp_v1';
 
-// Initial semi-open height (displays Crest, University, and Faculty of Architecture & Design)
-const SEMI_OPEN_HEIGHT = 280;
+// Initial semi-open height (displays Crest, School, Graduates and Red Stole cleanly)
+const SEMI_OPEN_HEIGHT = 350;
 
 /* =========================================================================
    REALISTIC PAPER SCROLL ASSETS & REFERENCE IMAGE SUB-COMPONENTS
@@ -192,12 +192,6 @@ const RealisticParchmentRoll: React.FC<{ progress: number; onFullUnroll: () => v
           <div className="absolute inset-x-0 top-1 h-2 bg-gradient-to-b from-white/95 to-transparent pointer-events-none" />
           <div className="absolute inset-x-0 bottom-1 h-2.5 bg-gradient-to-t from-[#8c7b60]/45 to-transparent pointer-events-none" />
 
-          {/* Watermarked Latin Graduation Motto on the roll surface */}
-          <div className="absolute inset-x-4 flex justify-between opacity-35 text-[8.5px] sm:text-[9.5px] font-cormorant italic text-[#78350f] font-bold pointer-events-none select-none">
-            <span>Ad augusta per angusta</span>
-            <span>Universitas Honorem</span>
-          </div>
-
           {/* Red Silk Ribbon Cord wrapped around the roll (matching reference image) */}
           <div className="relative z-10 flex items-center justify-center">
             <div className="flex gap-1 items-center">
@@ -308,13 +302,19 @@ const GoldenQuillEmblem: React.FC = () => (
   </svg>
 );
 
+// Cached birrete shape for 0ms lag during confetti triggers
+let cachedBirreteShape: any = null;
+
 /**
  * Lanza una lluvia de birretes (mortarboards) animados en lugar de confeti convencional
  */
 const triggerBirretesShower = (originY = 0.4, count = 45) => {
   try {
     if (typeof confetti.shapeFromText === 'function') {
-      const birreteShape = confetti.shapeFromText({ text: '🎓', scalar: 2.2 });
+      if (!cachedBirreteShape) {
+        cachedBirreteShape = confetti.shapeFromText({ text: '🎓', scalar: 2.2 });
+      }
+      const birreteShape = cachedBirreteShape;
 
       // Disparo central de birretes
       confetti({
@@ -436,34 +436,50 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  // FIXED SCROLL RUNWAY DISTANCE (STABLE & CONSTANT THROUGHOUT SCROLLING)
-  // Matched strictly to content height so scrolling finishes right as the diploma opens,
-  // putting clean bounds on the page and eliminating empty space at the end!
-  const scrollRunway = Math.max(600, Math.round(fullContentHeight - SEMI_OPEN_HEIGHT));
+  // Viewport tracking to align physical scroll runway with screen height
+  const [viewportHeight, setViewportHeight] = useState(() =>
+    typeof window !== 'undefined' ? window.innerHeight : 800
+  );
 
-  // Passive window scroll tracking
   useEffect(() => {
-    let ticking = false;
+    const handleResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Total container height when fully unrolled
+  const totalPageHeight = fullContentHeight + 140;
+
+  // Maximum physical scroll distance available in the browser window
+  const maxScrollDistance = Math.max(350, totalPageHeight - viewportHeight);
+
+  // High-performance rAF passive scroll listener (zero delay, 60-120fps fluid unrolling)
+  useEffect(() => {
+    let rAFId: number | null = null;
+    const updateScroll = () => {
+      setScrollY(window.scrollY || document.documentElement.scrollTop || 0);
+      rAFId = null;
+    };
     const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          setScrollY(window.scrollY);
-          ticking = false;
-        });
-        ticking = true;
+      if (rAFId === null) {
+        rAFId = window.requestAnimationFrame(updateScroll);
       }
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    setScrollY(window.scrollY);
+    updateScroll();
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      if (rAFId !== null) cancelAnimationFrame(rAFId);
     };
   }, []);
 
-  // SCROLL PROGRESS: Smoothly and stably ranges from 0.0 (top of page) to 1.0 (bottom of page)
-  const progress = Math.min(1, Math.max(0, scrollY / Math.max(1, scrollRunway)));
+  // PROGRESS COMPUTATION:
+  // Unrolls "poco a poco" from 0% to 100% across the full page scroll journey.
+  // Using >= 0.94 => 1.0 guarantees it hits 100% cleanly at the bottom (preventing the 95% freeze).
+  const rawProgress = maxScrollDistance > 0 ? scrollY / maxScrollDistance : 1;
+  const progress = rawProgress >= 0.94 ? 1 : Math.min(1, Math.max(0, rawProgress));
 
   // Audio & birretes feedback driven by scroll progress
   useEffect(() => {
@@ -580,7 +596,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
   // Handle auto-unroll smoothly to the bottom of the page
   const handleFullUnroll = () => {
     window.scrollTo({
-      top: scrollRunway,
+      top: maxScrollDistance,
       behavior: 'smooth',
     });
   };
@@ -647,7 +663,7 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
 
   return (
     <div
-      style={{ minHeight: `${fullContentHeight + 120}px` }}
+      style={{ minHeight: `${totalPageHeight}px` }}
       className="relative w-full flex flex-col items-center justify-start pt-3 sm:pt-6 pb-20 bg-radial from-[#0f172a] via-[#070b14] to-[#02050b] px-3 sm:px-4 overflow-x-hidden selection:bg-amber-500/30 selection:text-amber-200"
     >
       {/* Background radiant depth auras */}
@@ -705,6 +721,8 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
           className="w-full bg-parchment-luminous text-slate-900 rounded-b-xl border-x-2 border-b-2 border-amber-500/60 parchment-shadow-luminous relative overflow-hidden"
           style={{
             height: `${currentHeightPx}px`,
+            willChange: 'height',
+            transform: 'translateZ(0)',
           }}
         >
           {/* Crisp 24k Gold Inset Borders */}
@@ -1121,11 +1139,11 @@ export const UnifiedParchmentScroll: React.FC<UnifiedParchmentScrollProps> = ({
 
             {/* Parchment closing motto */}
             <div className="text-center pt-3 pb-1 border-t border-amber-200">
-              <span className="font-cormorant italic text-sm text-slate-600 block">
-                Ad Augusta Per Angusta · Hacia lo alto por caminos difíciles
+              <span className="font-cormorant italic text-sm text-slate-700 block">
+                Con honor y gratitud hacia un futuro lleno de éxitos
               </span>
               <span className="font-cinzel text-[11px] uppercase tracking-widest text-amber-800 font-extrabold mt-0.5 block">
-                Generación 2026
+                Generación 2026 · Bachilleres I.E.M. Chambú
               </span>
             </div>
           </div>
